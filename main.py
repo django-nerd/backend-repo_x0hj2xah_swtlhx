@@ -70,6 +70,26 @@ async def get_event_info():
     doc["id"] = str(doc.pop("_id"))
     return doc
 
+class EventInfoIn(BaseModel):
+    name: str
+    tagline: Optional[str] = None
+    date_iso: str
+    venue: str
+    address: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    ticket_url: Optional[str] = None
+    socials: Optional[dict] = None
+
+@app.post("/api/eventinfo")
+async def upsert_event_info(payload: EventInfoIn):
+    """Create or update the singleton event info document to activate countdown and ticket links."""
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database not available")
+    data = payload.model_dump()
+    db["eventinfo"].replace_one({}, data, upsert=True)
+    return {"ok": True}
+
 @app.get("/api/artists")
 async def list_artists(role: Optional[str] = None, headliner: Optional[bool] = None):
     if db is None:
@@ -168,17 +188,19 @@ async def seed_demo_content():
 
     created = {"eventinfo": False, "artist": 0, "experiencezone": 0, "tickettier": 0, "faq": 0, "mediaitem": 0}
 
-    # Event info
+    # Event info (set real-looking sample details)
     if db["eventinfo"].count_documents({}) == 0:
         create_document("eventinfo", {
             "name": "BlazinVibe",
             "tagline": "Feel the Beat. Live the Vibe.",
+            # Set to a near-future real date to activate countdown
             "date_iso": "2025-08-23T18:00:00Z",
             "venue": "Neon Docks",
             "address": "Pier 7, Riverfront",
             "city": "Riverfront City",
             "country": "USA",
-            "ticket_url": "https://tickets.example.com/blazinvibe",
+            # External ticketing link (replace with your live link anytime)
+            "ticket_url": "https://tickets.blazinvibe.io",
             "socials": {"instagram": "https://instagram.com/blazinvibe", "twitter": "https://twitter.com/blazinvibe"}
         })
         created["eventinfo"] = True
@@ -189,7 +211,12 @@ async def seed_demo_content():
             {"name": "NovaPulse", "role": "DJ", "bio": "Bass-heavy cosmic journeys.", "headliner": True},
             {"name": "Synesthesia", "role": "Live Band", "bio": "Synthwave meets indie electronica."},
             {"name": "VJ Lumen", "role": "Visual Artist", "bio": "Projection mapping wizard."},
-            {"name": "Flux Dancers", "role": "Performer", "bio": "Immersive choreographies and LED suits."}
+            {"name": "Flux Dancers", "role": "Performer", "bio": "Immersive choreographies and LED suits."},
+            {"name": "Echo Drift", "role": "DJ", "bio": "Hypnotic house and rolling techno."},
+            {"name": "Orbitals", "role": "Live Band", "bio": "Modular synths and drum machines live."},
+            {"name": "PrismArt", "role": "Visual Artist", "bio": "Holographic sculptures and lasers."},
+            {"name": "Aerial Flux", "role": "Performer", "bio": "Aerial silk performers in neon."},
+            {"name": "Deep Current", "role": "DJ", "bio": "Submerged basslines and liquid DnB."}
         ]
         for a in artists:
             create_document("artist", a)
@@ -200,7 +227,9 @@ async def seed_demo_content():
         zones = [
             {"title": "Main Stage", "kind": "Live Set", "description": "Headliner sets with full-spectrum lasers."},
             {"title": "Neon Garden", "kind": "Installation", "description": "Interactive light trails and art."},
-            {"title": "Chill Harbor", "kind": "Chill", "description": "Low-tempo grooves and ambient visuals."}
+            {"title": "Chill Harbor", "kind": "Chill", "description": "Low-tempo grooves and ambient visuals."},
+            {"title": "Creator Playground", "kind": "Workshop", "description": "DIY visuals, beat labs, and collab corners."},
+            {"title": "VIP Skydeck", "kind": "Lounge", "description": "Panoramic views, exclusive bar, concierge."}
         ]
         for z in zones:
             create_document("experiencezone", z)
@@ -211,7 +240,8 @@ async def seed_demo_content():
         tiers = [
             {"name": "Early Bird", "price": 49, "currency": "USD", "includes": ["General entry", "Installations"]},
             {"name": "General Admission", "price": 79, "currency": "USD", "includes": ["All stages", "Installations", "Creator Playground"]},
-            {"name": "VIP", "price": 149, "currency": "USD", "includes": ["VIP lounge", "Priority entry", "Exclusive bar"]}
+            {"name": "VIP", "price": 149, "currency": "USD", "includes": ["VIP lounge", "Priority entry", "Exclusive bar"]},
+            {"name": "Group 4-Pack", "price": 280, "currency": "USD", "includes": ["4x GA passes", "Merch discount"]}
         ]
         for t in tiers:
             create_document("tickettier", t)
@@ -222,18 +252,22 @@ async def seed_demo_content():
         faqs = [
             {"question": "What time do doors open?", "answer": "Doors open at 6:00 PM."},
             {"question": "Is there re-entry?", "answer": "Yes, with wristband and valid ID."},
-            {"question": "Is the event all-ages?", "answer": "18+ with valid ID."}
+            {"question": "Is the event all-ages?", "answer": "18+ with valid ID."},
+            {"question": "Will there be food?", "answer": "Yes, a variety of street food vendors and vegan options."}
         ]
         for f in faqs:
             create_document("faq", f)
             created["faq"] += 1
 
-    # Media
+    # Media (images + video) — replace these URLs with your own later
     if db["mediaitem"].count_documents({}) == 0:
         media = [
             {"kind": "photo", "url": "https://images.unsplash.com/photo-1518972559570-7cc1309f3229", "alt": "Crowd bathed in neon lights"},
             {"kind": "photo", "url": "https://images.unsplash.com/photo-1540575467063-178a50c2df87", "alt": "DJ on stage with lasers"},
-            {"kind": "photo", "url": "https://images.unsplash.com/photo-1487180144351-b8472da7d491", "alt": "Colorful light trails in dark hall"}
+            {"kind": "photo", "url": "https://images.unsplash.com/photo-1487180144351-b8472da7d491", "alt": "Colorful light trails in dark hall"},
+            {"kind": "photo", "url": "https://images.unsplash.com/photo-1492684223066-81342ee5ff30", "alt": "Hands up in the air at concert"},
+            {"kind": "photo", "url": "https://images.unsplash.com/photo-1492684223066-42c7cf8a1f7a", "alt": "Laser beams over crowd"},
+            {"kind": "video", "url": "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", "alt": "Aftermovie clip sample"}
         ]
         for m in media:
             create_document("mediaitem", m)
